@@ -142,7 +142,7 @@ class DQNAgent:
 
     def load(self, filename):
         """Load the model"""
-        checkpoint = torch.load(filename)
+        checkpoint = torch.load(filename, map_location=torch.device('cpu'))
         self.policy_net.load_state_dict(checkpoint['policy_model_state_dict'])
         self.target_net.load_state_dict(checkpoint['target_model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -157,7 +157,7 @@ def get_action(obs):
     ACTION_SIZE = 6 
 
     agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-    agent.load("dqn_checkpoint_ep100000.pt", map_location=torch.device('cpu'))
+    agent.load("dqn_checkpoint_ep100000.pt")
     
     # Ensure obs is a NumPy array with dtype float32
     obs = np.array(obs, dtype=np.float32)
