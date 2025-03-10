@@ -8,9 +8,6 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque 
 
-# Setup device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Neural Network for DQN
 class DQNetwork(nn.Module):
     def __init__(self, state_size, action_size, hidden_size=64):
@@ -149,19 +146,18 @@ class DQNAgent:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epsilon = checkpoint['epsilon']
 
-# Set these based on your training environment
-STATE_SIZE = 16
-ACTION_SIZE = 6
-
-# Instantiate the agent and load the trained checkpoint
-agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-agent.load("dqn_checkpoint_ep100000.pt")
-
 def get_action(obs):
     """
     Given an observation, returns the action chosen by the trained agent.
     If the observation doesn't match the expected shape, a fallback random action is used.
     """
+    STATE_SIZE = 16
+    ACTION_SIZE = 6 
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
+    agent.load("dqn_checkpoint_ep100000.pt")
+    
     # Ensure obs is a NumPy array with dtype float32
     obs = np.array(obs, dtype=np.float32)
     if obs.shape[0] != STATE_SIZE:
