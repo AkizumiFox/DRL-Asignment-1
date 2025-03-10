@@ -470,7 +470,7 @@ if __name__ == "__main__":
         except ValueError:
             print("Invalid input. Using default size 6.")
             interactive_test(6)
-    else:
+    elif choice == "1":
         # Original automated test
         test_n = 6
         maze_obj = Maze(test_n)
@@ -514,3 +514,21 @@ if __name__ == "__main__":
         print(f"Action after fuel depletion: Reward = {reward}, Done = {done}")
         print(f"Fuel remaining: {maze_obj.fuel}")
         display_observation(obs)
+    else:
+        test_n = 5
+        maze_obj = Maze(test_n)
+        total_reward = 0
+        done = False
+        
+        print("\nPerforming random actions:")
+        while not done:
+            action = random.randint(0, 5)  # Random action between 0-5
+            obs, reward, done, _, _ = maze_obj.step(action)
+            total_reward += reward
+            print(f"Action {action}: Reward = {reward}, Total Reward = {total_reward}")
+            print(f"Taxi location: {maze_obj.taxi_location}")
+            print(f"Fuel remaining: {maze_obj.fuel}")
+            display_observation(obs)
+            print()
+        
+        print(f"\nEpisode ended with total reward: {total_reward}")
