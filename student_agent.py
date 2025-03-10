@@ -156,12 +156,14 @@ def get_action(obs):
     STATE_SIZE = 16
     ACTION_SIZE = 6 
 
-    agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-    agent.load("dqn_checkpoint_ep100000.pt")
-    
+    # Initialize the agent only once
+    if not hasattr(get_action, "agent"):
+        get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
+        get_action.agent.load("dqn_checkpoint_ep100000.pt")
+
     # Ensure obs is a NumPy array with dtype float32
     obs = np.array(obs, dtype=np.float32)
     if obs.shape[0] != STATE_SIZE:
         print("Size error!")
         return random.choice(range(ACTION_SIZE))
-    return agent.act(obs)
+    return get_action.agent.act(obs)
