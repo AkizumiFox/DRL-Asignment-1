@@ -6,6 +6,7 @@ import gym
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from collections import deque 
 
 # Setup device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
