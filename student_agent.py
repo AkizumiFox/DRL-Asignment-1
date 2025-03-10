@@ -192,18 +192,18 @@ def parse_state(obs):
     return (
         taxi_row,
         taxi_col,
-        padded_stations[3][0],
-        padded_stations[3][1],
-        padded_stations[2][0],
-        padded_stations[2][1],
-        padded_stations[1][0],
-        padded_stations[1][1],
         padded_stations[0][0],
         padded_stations[0][1],
-        lst[3],
-        lst[2],
-        lst[1],
+        padded_stations[1][0],
+        padded_stations[1][1],
+        padded_stations[2][0],
+        padded_stations[2][1],
+        padded_stations[3][0],
+        padded_stations[3][1],
         lst[0],
+        lst[1],
+        lst[2],
+        lst[3],
         obstacle_north,
         obstacle_south,
         obstacle_east,
@@ -309,11 +309,11 @@ class DRQNAgent:
         # Process episode in chunks
         for start in range(0, seq_len, self.chunk_size):
             end = min(start + self.chunk_size, seq_len)
-            chunk_states = torch.FloatTensor(states[start:end]).unsqueeze(0).to(device)      # (1, chunk_len, state_size)
-            chunk_actions = torch.LongTensor(actions[start:end]).unsqueeze(0).to(device)       # (1, chunk_len)
-            chunk_rewards = torch.FloatTensor(rewards[start:end]).unsqueeze(0).to(device)      # (1, chunk_len)
-            chunk_next_states = torch.FloatTensor(next_states[start:end]).unsqueeze(0).to(device)
-            chunk_dones = torch.FloatTensor(dones[start:end]).unsqueeze(0).to(device)
+            chunk_states = torch.FloatTensor(states[start:end]).unsqueeze(0).to(self.device)      # (1, chunk_len, state_size)
+            chunk_actions = torch.LongTensor(actions[start:end]).unsqueeze(0).to(self.device)       # (1, chunk_len)
+            chunk_rewards = torch.FloatTensor(rewards[start:end]).unsqueeze(0).to(self.device)      # (1, chunk_len)
+            chunk_next_states = torch.FloatTensor(next_states[start:end]).unsqueeze(0).to(self.device)
+            chunk_dones = torch.FloatTensor(dones[start:end]).unsqueeze(0).to(self.device)
             
             # Forward pass through policy network for current chunk
             q_values, hidden_state = self.policy_net(chunk_states, hidden_state)
@@ -373,11 +373,17 @@ def get_action(obs):
         get_action.agent.load("drqn_final.pt")
         get_action.hidden_state = get_action.agent.reset_hidden_state()
 
-    obs = parse_state(obs)
-    obs = np.array(obs, dtype=np.float32)
-    if obs.shape[0] != STATE_SIZE:
-        raise ValueError("Size error!")
+    # Parse and convert observation
+    parsed_obs = parse_state(obs)
+    state = np.array(parsed_obs, dtype=np.float32)
     
-    # Pass hidden state to act method and store the updated hidden state
-    action, get_action.hidden_state = get_action.agent.act(obs, get_action.hidden_state)
+    if state.shape[0] != STATE_SIZE:
+        raise ValueError(f"Expected state size {STATE_SIZE}, got {state.shape[0]}")
+    
+    # Get action with epsilon = 0 (no exploration during evaluation)
+    epsilon_backup = get_action.agent.epsilon
+    get_action.agent.epsilon = 0  # Turn off exploration during evaluation
+    action, get_action.hidden_state = get_action.agent.act(state, get_action.hidden_state)
+    get_action.agent.epsilon = epsilon_backup  # Restore epsilon
+    
     return action
