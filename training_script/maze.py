@@ -458,9 +458,7 @@ def display_observation(obs):
     
     # Print in a formatted way
     print("\nObservation Details:")
-    print(f"  Taxi position: [{taxi_row}, {taxi_col}]")
-    print(f"  Stations: {stations}")
-    print("  Obstacles: ", end="")
+    print(f"  {obs}")
     directions = []
     if obstacle_north: directions.append("North")
     if obstacle_south: directions.append("South")

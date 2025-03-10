@@ -162,8 +162,10 @@ def get_action(obs):
         get_action.agent.load("dqn_checkpoint_ep100000.pt")
 
     # Ensure obs is a NumPy array with dtype float32
+    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
     obs = np.array(obs, dtype=np.float32)
     if obs.shape[0] != STATE_SIZE:
-        print("Size error!")
+        raise ValueError("Size error!")
+        # print("Size error!")
         return random.choice(range(ACTION_SIZE))
     return get_action.agent.act(obs)
