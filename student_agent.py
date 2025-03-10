@@ -371,9 +371,13 @@ def get_action(obs):
     if not hasattr(get_action, "agent"):
         get_action.agent = DRQNAgent(STATE_SIZE, ACTION_SIZE)
         get_action.agent.load("drqn_final.pt")
+        get_action.hidden_state = get_action.agent.reset_hidden_state()
 
     obs = parse_state(obs)
     obs = np.array(obs, dtype=np.float32)
     if obs.shape[0] != STATE_SIZE:
         raise ValueError("Size error!")
-    return get_action.agent.act(obs)
+    
+    # Pass hidden state to act method and store the updated hidden state
+    action, get_action.hidden_state = get_action.agent.act(obs, get_action.hidden_state)
+    return action
