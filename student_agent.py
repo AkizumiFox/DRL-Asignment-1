@@ -24,6 +24,7 @@ class DQNetwork(nn.Module):
 # Experience Replay Buffer
 class ReplayBuffer:
     def __init__(self, buffer_size):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.buffer = deque(maxlen=buffer_size)
 
     def add(self, obs, action, reward, next_obs, done):
@@ -41,11 +42,11 @@ class ReplayBuffer:
         dones = np.array(dones, dtype=np.float32)
 
         return (
-            torch.tensor(observations).to(device),
-            torch.tensor(actions).to(device),
-            torch.tensor(rewards).to(device),
-            torch.tensor(next_observations).to(device),
-            torch.tensor(dones).to(device)
+            torch.tensor(observations).to(self.device),
+            torch.tensor(actions).to(self.device),
+            torch.tensor(rewards).to(self.device),
+            torch.tensor(next_observations).to(self.device),
+            torch.tensor(dones).to(self.device)
         )
 
     def __len__(self):
@@ -156,7 +157,7 @@ def get_action(obs):
     ACTION_SIZE = 6 
 
     agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-    agent.load("dqn_checkpoint_ep100000.pt")
+    agent.load("dqn_checkpoint_ep100000.pt", map_location=torch.device('cpu'))
     
     # Ensure obs is a NumPy array with dtype float32
     obs = np.array(obs, dtype=np.float32)
