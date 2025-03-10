@@ -63,9 +63,9 @@ class DQNAgent:
         self.tau = tau      # for soft update of target network
 
         # Q-Networks (policy and target)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.policy_net = DQNetwork(state_size, action_size).to(device)
-        self.target_net = DQNetwork(state_size, action_size).to(device)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.policy_net = DQNetwork(state_size, action_size).to(self.device)
+        self.target_net = DQNetwork(state_size, action_size).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()  # Target network is not trained directly
 
@@ -85,7 +85,7 @@ class DQNAgent:
         if (not eval_mode) and random.random() < self.epsilon:
             return random.randrange(self.action_size)
 
-        obs = torch.FloatTensor(obs).unsqueeze(0).to(device)
+        obs = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
         self.policy_net.eval()
         with torch.no_grad():
             action_values = self.policy_net(obs)
