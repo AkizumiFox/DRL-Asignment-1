@@ -62,6 +62,7 @@ class DQNAgent:
         self.tau = tau      # for soft update of target network
 
         # Q-Networks (policy and target)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.policy_net = DQNetwork(state_size, action_size).to(device)
         self.target_net = DQNetwork(state_size, action_size).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -154,7 +155,6 @@ def get_action(obs):
     STATE_SIZE = 16
     ACTION_SIZE = 6 
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
     agent.load("dqn_checkpoint_ep100000.pt")
     
