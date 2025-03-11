@@ -215,7 +215,7 @@ def get_action(obs):
 
     if not hasattr(get_action, "agent"):
         get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-        get_action.agent.load("dqn_checkpoint_ep32900.pt")
+        get_action.agent.load("dqn_checkpoint_ep45200.pt")
     
     if not hasattr(get_action, "prev_obs"):
         get_action.have_passenger = 0
