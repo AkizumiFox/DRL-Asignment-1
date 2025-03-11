@@ -161,10 +161,10 @@ def get_distances(state):
     stations = [[0, 0] for _ in range(4)]
     (
         taxi_row, taxi_col,
-        stations[3][0], stations[3][1],
-        stations[2][0], stations[2][1],
-        stations[1][0], stations[1][1],
         stations[0][0], stations[0][1],
+        stations[1][0], stations[1][1],
+        stations[2][0], stations[2][1],
+        stations[3][0], stations[3][1],
         _, _, _, _,
         _, _
     ) = state
