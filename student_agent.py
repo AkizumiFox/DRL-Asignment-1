@@ -157,6 +157,7 @@ def get_action(obs):
         get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
         get_action.agent.load("dqn_checkpoint_ep26300.pt")
 
+    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
     obs = np.array(obs, dtype=np.float32)
     if obs.shape[0] != STATE_SIZE:
         raise ValueError("Size error!")
