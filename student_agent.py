@@ -79,7 +79,7 @@ class DQNAgent:
         # Exploration parameters
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.9999  # Decay applied once per episode
+        self.epsilon_decay = 0.99995  # Decay applied once per episode
 
     def act(self, obs, eval_mode=False):
         """Select an action using epsilon-greedy policy"""
@@ -149,17 +149,87 @@ class DQNAgent:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epsilon = checkpoint['epsilon']
 
+# Function to preprocess the state for the neural network
+def preprocess_state(state):
+    """Convert tuple state to numpy array for neural network input"""
+    return np.array(state, dtype=np.float32)
+
+def get_distances(state):
+    """Computes Manhattan distances from the taxi to each station given the raw state."""
+    def manhattan_distance(pos1, pos2):
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+    stations = [[0, 0] for _ in range(4)]
+    (
+        taxi_row, taxi_col,
+        stations[3][0], stations[3][1],
+        stations[2][0], stations[2][1],
+        stations[1][0], stations[1][1],
+        stations[0][0], stations[0][1],
+        _, _, _, _,
+        _, _
+    ) = state
+    distances = [manhattan_distance((taxi_row, taxi_col), station) for station in stations]
+    return distances
+
+def passenger_on_taxi(prev_state, action, now_state, prev):
+    """
+    Determines whether the passenger is on the taxi.
+    Returns 1 if the passenger is on board, 0 otherwise.
+    """
+    stations_1 = [[0, 0] for _ in range(4)]
+    (
+        taxi_row_1, taxi_col_1,
+        stations_1[3][0], stations_1[3][1],
+        stations_1[2][0], stations_1[2][1],
+        stations_1[1][0], stations_1[1][1],
+        stations_1[0][0], stations_1[0][1],
+        _, _, _, _,
+        passenger_look_1, destination_look_1
+    ) = prev_state
+
+    stations_2 = [[0, 0] for _ in range(4)]
+    (
+        taxi_row_2, taxi_col_2,
+        stations_2[3][0], stations_2[3][1],
+        stations_2[2][0], stations_2[2][1],
+        stations_2[1][0], stations_2[1][1],
+        stations_2[0][0], stations_2[0][1],
+        _, _, _, _,
+        passenger_look_2, destination_look_2
+    ) = now_state
+
+    # If a drop-off action occurs and the taxi is at a station with destination visible, flag resets.
+    if action == 5 and [taxi_row_2, taxi_col_2] in stations_2 and destination_look_2 == 1:
+        return 0
+    # For actions other than pickup, carry forward previous flag.
+    if action != 4:
+        return prev
+    # If pickup action and taxi is at a station with passenger visible, set flag.
+    if [taxi_row_2, taxi_col_2] in stations_2 and passenger_look_2 == 1:
+        return 1
+    return 0
+
 def get_action(obs):
-    STATE_SIZE = 16
+    STATE_SIZE = 21
     ACTION_SIZE = 6 
 
     if not hasattr(get_action, "agent"):
         get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-        get_action.agent.load("dqn_checkpoint_ep26300.pt")
-
-    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
-    obs = np.array(obs, dtype=np.float32)
-    if obs.shape[0] != STATE_SIZE:
-        raise ValueError("Size error!")
+        get_action.agent.load("dqn_checkpoint_ep32900.pt")
+    
+    if not hasattr(get_action, "prev_obs"):
+        get_action.have_passenger = 0
     else:
-        return get_action.agent.act(obs)
+        get_action.have_passenger = passenger_on_taxi(get_action.prev_raw_obs, get_action.prev_action, obs, get_action.have_passenger)
+
+    get_action.prev_raw_obs = obs   
+    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
+    distances = get_distances(obs)
+    
+    this_obs = list(obs) + list(distances) + [get_action.have_passenger]
+    this_obs = np.array(this_obs, dtype=np.float32)
+
+    action = get_action.agent.act(this_obs)
+    get_action.prev_action = action
+
+    return action
