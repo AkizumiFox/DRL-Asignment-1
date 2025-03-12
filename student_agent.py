@@ -8,54 +8,20 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
-# DQRN Network with an LSTM layer
-class DQRNNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=64, lstm_layers=1):
-        super(DQRNNetwork, self).__init__()
-        self.hidden_size = hidden_size
-        self.lstm_layers = lstm_layers
-        
-        # Initial fully-connected layer to process the state
+# Neural Network for DQN
+class DQNetwork(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=64):
+        super(DQNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
-        # LSTM layer to capture temporal dependencies.
-        self.lstm = nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
-                            num_layers=lstm_layers, batch_first=True)
-        # Final layer to output Q-values for each action
-        self.fc2 = nn.Linear(hidden_size, action_size)
-        
-        # Hidden state stored in the model attribute (tuple: (h_0, c_0))
-        self.hidden = None
-
-    def reset_hidden(self, batch_size=1):
-        """Reset hidden state for a new sequence (e.g. at the beginning of an episode)"""
-        device = next(self.parameters()).device
-        self.hidden = (torch.zeros(self.lstm_layers, batch_size, self.hidden_size).to(device),
-                       torch.zeros(self.lstm_layers, batch_size, self.hidden_size).to(device))
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_size)
 
     def forward(self, x):
-        """
-        Forward pass:
-         - If input x is 2D (batch, state_size), unsqueeze it to create a sequence length of 1.
-         - Pass through fc1, then through the LSTM (which updates the internal hidden state).
-         - Use the output from the last time step to compute Q-values via fc2.
-        """
-        # Ensure x has a sequence dimension (batch, seq_len, feature)
-        if len(x.shape) == 2:
-            x = x.unsqueeze(1)  # shape: (batch_size, 1, state_size)
-        x = torch.relu(self.fc1(x))  # shape: (batch_size, seq_len, hidden_size)
-        
-        # If hidden state is not set or batch size changes, reset it
-        if self.hidden is None or self.hidden[0].size(1) != x.size(0):
-            self.reset_hidden(batch_size=x.size(0))
-        
-        # Pass through LSTM; the hidden state is stored in the model attribute
-        x, self.hidden = self.lstm(x, self.hidden)
-        # Use the output of the last time step
-        x = x[:, -1, :]
-        x = self.fc2(x)
-        return x
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)
 
-# Experience Replay Buffer remains unchanged
+# Experience Replay Buffer
 class ReplayBuffer:
     def __init__(self, buffer_size):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,11 +33,14 @@ class ReplayBuffer:
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
         observations, actions, rewards, next_observations, dones = zip(*batch)
+
+        # Convert to numpy arrays first for better performance
         observations = np.array(observations, dtype=np.float32)
         actions = np.array(actions, dtype=np.int64)
         rewards = np.array(rewards, dtype=np.float32)
         next_observations = np.array(next_observations, dtype=np.float32)
         dones = np.array(dones, dtype=np.float32)
+
         return (
             torch.tensor(observations).to(self.device),
             torch.tensor(actions).to(self.device),
@@ -83,94 +52,88 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-# DQRN Agent updated for the recurrent (LSTM-based) architecture
-class DQRNAgent:
+# DQN Agent updated for once-per-episode learning and epsilon decay per episode
+class DQNAgent:
     def __init__(self, state_size, action_size, buffer_size=10000, batch_size=64,
-                 gamma=0.99, learning_rate=0.001, tau=0.001, hidden_size=64, lstm_layers=1):
+                 gamma=0.99, learning_rate=0.001, tau=0.001):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.state_size = state_size
         self.action_size = action_size
         self.batch_size = batch_size
         self.gamma = gamma  # discount factor
         self.tau = tau      # for soft update of target network
 
-        # Create Q-networks using the DQRNNetwork architecture
-        self.policy_net = DQRNNetwork(state_size, action_size, hidden_size, lstm_layers).to(self.device)
-        self.target_net = DQRNNetwork(state_size, action_size, hidden_size, lstm_layers).to(self.device)
+        # Q-Networks (policy and target)
+        self.policy_net = DQNetwork(state_size, action_size).to(self.device)
+        self.target_net = DQNetwork(state_size, action_size).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()  # Target network is not trained directly
 
         # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
+
         # Replay buffer
         self.memory = ReplayBuffer(buffer_size)
+
         # Exploration parameters
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.99995  # Decay applied once per episode
-
-    def reset_hidden(self):
-        """Reset the hidden states of both the policy and target networks."""
-        self.policy_net.reset_hidden(batch_size=1)
-        self.target_net.reset_hidden(batch_size=1)
+        self.epsilon_decay = 0.9999  # Decay applied once per episode
 
     def act(self, obs, eval_mode=False):
-        """Select an action using an epsilon-greedy policy.
-           Note that the hidden state is maintained within the network (self.policy_net.hidden)"""
+        """Select an action using epsilon-greedy policy"""
         if (not eval_mode) and random.random() < self.epsilon:
             return random.randrange(self.action_size)
-        
-        # Convert observation to tensor and add batch dimension
-        obs = torch.FloatTensor(obs).unsqueeze(0).to(self.device)  # shape: (1, state_size)
+
+        obs = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
         self.policy_net.eval()
         with torch.no_grad():
-            q_values = self.policy_net(obs)
+            action_values = self.policy_net(obs)
         self.policy_net.train()
-        return torch.argmax(q_values, dim=1).item()
+
+        return torch.argmax(action_values, dim=1).item()
 
     def step(self, obs, action, reward, next_obs, done):
-        """Store experience in the replay buffer."""
+        """Add experience to memory.
+           Epsilon decay is now handled once per episode in the training loop."""
         self.memory.add(obs, action, reward, next_obs, done)
 
     def learn(self):
-        """Perform a learning update with a batch of experiences.
-           Note: For simplicity, here we assume each sampled experience is treated as a sequence of length 1."""
-        if len(self.memory) < self.batch_size:
-            return
-
+        """Perform a single learning step using a batch of experience tuples"""
+        # Sample from memory
         observations, actions, rewards, next_observations, dones = self.memory.sample(self.batch_size)
-        
-        # Add a sequence dimension: each sample is a sequence of length 1
-        observations = observations.unsqueeze(1)  # shape: (batch, 1, state_size)
-        next_observations = next_observations.unsqueeze(1)
 
-        # Reset hidden states for batch processing in both networks
-        self.policy_net.reset_hidden(batch_size=observations.size(0))
-        self.target_net.reset_hidden(batch_size=next_observations.size(0))
-
-        # Compute current Q values and target Q values
+        # Get Q values for current states
         Q_expected = self.policy_net(observations).gather(1, actions.unsqueeze(1)).squeeze(1)
+
+        # Get max Q values for next states from target model
         with torch.no_grad():
             Q_targets_next = self.target_net(next_observations).max(1)[0]
+
+        # Compute target Q values
         Q_targets = rewards + (self.gamma * Q_targets_next * (1 - dones))
 
-        # Compute loss and update network parameters
+        # Calculate loss
         loss = nn.MSELoss()(Q_expected, Q_targets)
+
+        # Minimize loss
         self.optimizer.zero_grad()
         loss.backward()
-        # Clip gradients to prevent exploding gradients
+        # Gradient clipping to prevent exploding gradients
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1)
         self.optimizer.step()
-        # Soft update the target network
+
+        # Soft update target network
         self.soft_update()
 
     def soft_update(self):
-        """Soft-update model parameters."""
+        """Soft update of target network parameters"""
         for target_param, policy_param in zip(self.target_net.parameters(), self.policy_net.parameters()):
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
 
     def save(self, filename):
-        """Save model parameters and optimizer state."""
+        """Save the model"""
         torch.save({
             'policy_model_state_dict': self.policy_net.state_dict(),
             'target_model_state_dict': self.target_net.state_dict(),
@@ -179,8 +142,8 @@ class DQRNAgent:
         }, filename)
 
     def load(self, filename):
-        """Load model parameters and optimizer state."""
-        checkpoint = torch.load(filename, map_location=self.device)
+        """Load the model"""
+        checkpoint = torch.load(filename, map_location=torch.device('cpu'))
         self.policy_net.load_state_dict(checkpoint['policy_model_state_dict'])
         self.target_net.load_state_dict(checkpoint['target_model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -247,12 +210,12 @@ def passenger_on_taxi(prev_state, action, now_state, prev):
     return 0
 
 def get_action(obs):
-    STATE_SIZE = 21
+    STATE_SIZE = 17
     ACTION_SIZE = 6 
 
     if not hasattr(get_action, "agent"):
-        get_action.agent = DQRNAgent(STATE_SIZE, ACTION_SIZE)
-        get_action.agent.load("dqn_checkpoint_ep98100.pt")
+        get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
+        get_action.agent.load("dqn_checkpoint_ep10000.pt")
     
     if not hasattr(get_action, "prev_obs"):
         get_action.have_passenger = 0
@@ -261,9 +224,8 @@ def get_action(obs):
 
     get_action.prev_raw_obs = obs   
     obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
-    distances = get_distances(obs)[::-1]
     
-    this_obs = list(obs) + list(distances) + [get_action.have_passenger]
+    this_obs = list(obs) + [get_action.have_passenger]
     this_obs = np.array(this_obs, dtype=np.float32)
 
     action = get_action.agent.act(this_obs)
