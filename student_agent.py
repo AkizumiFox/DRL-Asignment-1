@@ -121,7 +121,8 @@ def get_action(obs):
     station_directions = get_station_directions(obs)
     state = tuple(
         list(station_directions) + 
-        list(obs[10:]) + 
+        list(obs[10:14])[::-1] +
+        list(obs[14:]) + 
         [get_action.have_passenger] + 
         [get_action.now_target]
     )
