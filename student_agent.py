@@ -8,174 +8,34 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
-# Neural Network for DQN
-class DQNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=64):
-        super(DQNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, action_size)
+def get_station_directions(obs):
+    """
+        tuple: 16 binary values where:
+        - Values 0-3: Station 0's [North, East, West, South] position relative to taxi
+        - Values 4-7: Station 1's [North, East, West, South] position relative to taxi
+        - Values 8-11: Station 2's [North, East, West, South] position relative to taxi
+        - Values 12-15: Station 3's [North, East, West, South] position relative to taxi
+    """
+    taxi_row, taxi_col = obs[0], obs[1]
 
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        return self.fc3(x)
+    stations = [
+        (obs[2], obs[3]),
+        (obs[4], obs[5]),
+        (obs[6], obs[7]),
+        (obs[8], obs[9])
+    ]
 
-# Experience Replay Buffer
-class ReplayBuffer:
-    def __init__(self, buffer_size):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.buffer = deque(maxlen=buffer_size)
+    station_directions = []
+    for station in stations:
+        station_row, station_col = station
+        station_directions.append(int(station_col > taxi_col))
+        station_directions.append(int(station_col < taxi_col))
+        station_directions.append(int(station_row > taxi_row))
+        station_directions.append(int(station_row < taxi_row))
 
-    def add(self, obs, action, reward, next_obs, done):
-        self.buffer.append((obs, action, reward, next_obs, done))
-
-    def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        observations, actions, rewards, next_observations, dones = zip(*batch)
-
-        # Convert to numpy arrays first for better performance
-        observations = np.array(observations, dtype=np.float32)
-        actions = np.array(actions, dtype=np.int64)
-        rewards = np.array(rewards, dtype=np.float32)
-        next_observations = np.array(next_observations, dtype=np.float32)
-        dones = np.array(dones, dtype=np.float32)
-
-        return (
-            torch.tensor(observations).to(self.device),
-            torch.tensor(actions).to(self.device),
-            torch.tensor(rewards).to(self.device),
-            torch.tensor(next_observations).to(self.device),
-            torch.tensor(dones).to(self.device)
-        )
-
-    def __len__(self):
-        return len(self.buffer)
-
-# DQN Agent updated for once-per-episode learning and epsilon decay per episode
-class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=10000, batch_size=64,
-                 gamma=0.99, learning_rate=0.001, tau=0.001):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        self.state_size = state_size
-        self.action_size = action_size
-        self.batch_size = batch_size
-        self.gamma = gamma  # discount factor
-        self.tau = tau      # for soft update of target network
-
-        # Q-Networks (policy and target)
-        self.policy_net = DQNetwork(state_size, action_size).to(self.device)
-        self.target_net = DQNetwork(state_size, action_size).to(self.device)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.target_net.eval()  # Target network is not trained directly
-
-        # Optimizer
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
-
-        # Replay buffer
-        self.memory = ReplayBuffer(buffer_size)
-
-        # Exploration parameters
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.9999  # Decay applied once per episode
-
-    def act(self, obs, eval_mode=False):
-        """Select an action using epsilon-greedy policy"""
-        if (not eval_mode) and random.random() < self.epsilon:
-            return random.randrange(self.action_size)
-
-        obs = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
-        self.policy_net.eval()
-        with torch.no_grad():
-            action_values = self.policy_net(obs)
-        self.policy_net.train()
-
-        return torch.argmax(action_values, dim=1).item()
-
-    def step(self, obs, action, reward, next_obs, done):
-        """Add experience to memory.
-           Epsilon decay is now handled once per episode in the training loop."""
-        self.memory.add(obs, action, reward, next_obs, done)
-
-    def learn(self):
-        """Perform a single learning step using a batch of experience tuples"""
-        # Sample from memory
-        observations, actions, rewards, next_observations, dones = self.memory.sample(self.batch_size)
-
-        # Get Q values for current states
-        Q_expected = self.policy_net(observations).gather(1, actions.unsqueeze(1)).squeeze(1)
-
-        # Get max Q values for next states from target model
-        with torch.no_grad():
-            Q_targets_next = self.target_net(next_observations).max(1)[0]
-
-        # Compute target Q values
-        Q_targets = rewards + (self.gamma * Q_targets_next * (1 - dones))
-
-        # Calculate loss
-        loss = nn.MSELoss()(Q_expected, Q_targets)
-
-        # Minimize loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        # Gradient clipping to prevent exploding gradients
-        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1)
-        self.optimizer.step()
-
-        # Soft update target network
-        self.soft_update()
-
-    def soft_update(self):
-        """Soft update of target network parameters"""
-        for target_param, policy_param in zip(self.target_net.parameters(), self.policy_net.parameters()):
-            target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
-
-    def save(self, filename):
-        """Save the model"""
-        torch.save({
-            'policy_model_state_dict': self.policy_net.state_dict(),
-            'target_model_state_dict': self.target_net.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'epsilon': self.epsilon
-        }, filename)
-
-    def load(self, filename):
-        """Load the model"""
-        checkpoint = torch.load(filename, map_location=torch.device('cpu'))
-        self.policy_net.load_state_dict(checkpoint['policy_model_state_dict'])
-        self.target_net.load_state_dict(checkpoint['target_model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.epsilon = checkpoint['epsilon']
-
-# Function to preprocess the state for the neural network
-def preprocess_state(state):
-    """Convert tuple state to numpy array for neural network input"""
-    return np.array(state, dtype=np.float32)
-
-def get_distances(state):
-    """Computes Manhattan distances from the taxi to each station given the raw state."""
-    def manhattan_distance(pos1, pos2):
-        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
-    stations = [[0, 0] for _ in range(4)]
-    (
-        taxi_row, taxi_col,
-        stations[0][0], stations[0][1],
-        stations[1][0], stations[1][1],
-        stations[2][0], stations[2][1],
-        stations[3][0], stations[3][1],
-        _, _, _, _,
-        _, _
-    ) = state
-    distances = [manhattan_distance((taxi_row, taxi_col), station) for station in stations]
-    return distances
+    return tuple(station_directions)
 
 def passenger_on_taxi(prev_state, action, now_state, prev):
-    """
-    Determines whether the passenger is on the taxi.
-    Returns 1 if the passenger is on board, 0 otherwise.
-    """
     stations_1 = [[0, 0] for _ in range(4)]
     (
         taxi_row_1, taxi_col_1,
@@ -198,37 +58,59 @@ def passenger_on_taxi(prev_state, action, now_state, prev):
         passenger_look_2, destination_look_2
     ) = now_state
 
-    # If a drop-off action occurs and the taxi is at a station with destination visible, flag resets.
     if action == 5 and [taxi_row_2, taxi_col_2] in stations_2 and destination_look_2 == 1:
         return 0
-    # For actions other than pickup, carry forward previous flag.
     if action != 4:
         return prev
-    # If pickup action and taxi is at a station with passenger visible, set flag.
     if [taxi_row_2, taxi_col_2] in stations_2 and passenger_look_2 == 1:
         return 1
     return 0
 
-def get_action(obs):
-    STATE_SIZE = 17
-    ACTION_SIZE = 6 
+def update_target(obs, old_target):
+    if (obs[0], obs[1]) == (obs[2], obs[3]) and old_target == 0:
+        return 1
+    if (obs[0], obs[1]) == (obs[4], obs[5]) and old_target == 1:
+        return 2
+    if (obs[0], obs[1]) == (obs[6], obs[7]) and old_target == 2:
+        return 3
+    if (obs[0], obs[1]) == (obs[8], obs[9]) and old_target == 3:
+        return 0
+    return old_target
 
-    if not hasattr(get_action, "agent"):
-        get_action.agent = DQNAgent(STATE_SIZE, ACTION_SIZE)
-        get_action.agent.load("dqn_checkpoint_ep10000.pt")
-    
-    if not hasattr(get_action, "prev_obs"):
-        get_action.have_passenger = 0
+def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
+    """
+    Applies potential-based reward shaping based on distance to current target.
+    """
+    def get_target_coords(obs, target_idx):
+        if target_idx == 0: return obs[2], obs[3]
+        elif target_idx == 1: return obs[4], obs[5]
+        elif target_idx == 2: return obs[6], obs[7]
+        elif target_idx == 3: return obs[8], obs[9]
+
+    def manhattan_distance(row1, col1, row2, col2):
+        return abs(row1 - row2) + abs(col1 - col2)
+
+    if prev_target != now_target:
+        return reward
     else:
-        get_action.have_passenger = passenger_on_taxi(get_action.prev_raw_obs, get_action.prev_action, obs, get_action.have_passenger)
+        target_row, target_col = get_target_coords(now_obs, now_target)
+        prev_potential = -manhattan_distance(prev_obs[0], prev_obs[1], target_row, target_col)
+        next_potential = -manhattan_distance(now_obs[0], now_obs[1], target_row, target_col)
+        shaping_reward = next_potential - prev_potential
+        return reward + shaping_reward
 
-    get_action.prev_raw_obs = obs   
-    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
-    
-    this_obs = list(obs) + [get_action.have_passenger]
-    this_obs = np.array(this_obs, dtype=np.float32)
+def get_action(obs):
+    if not hasattr(get_action, "q_table"):
+        get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
+        get_action.have_passenger = 0
+        get_action.now_target = 0
+    else:
+        get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, action, obs, get_action.have_passenger)
+        get_action.now_target = update_target(obs, get_action.now_target)
 
-    action = get_action.agent.act(this_obs)
-    get_action.prev_action = action
+    station_directions = get_station_directions(obs)
+    state = tuple(list(station_directions) + list(obs[10:]) + [get_action.have_passenger] + [get_action.now_target])
+    action = np.argmax(get_action.q_table[state])
 
+    get_action.prev_obs = obs
     return action

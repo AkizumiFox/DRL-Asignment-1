@@ -241,6 +241,7 @@ class Maze:
         - Station coordinates (padded to ensure 4 stations, adjusted by -1)
         - Obstacle flags in the four cardinal directions
         - Passenger and destination visibility flags
+        - Station direction flags (16 values: 4 per station for N, E, W, S)
 
         Returns:
             tuple: State representation
@@ -273,14 +274,72 @@ class Maze:
 
         state = (
             taxi_row - 1, taxi_col - 1,
-            padded_stations[3][0] - 1, padded_stations[3][1] - 1,
-            padded_stations[2][0] - 1, padded_stations[2][1] - 1,
-            padded_stations[1][0] - 1, padded_stations[1][1] - 1,
             padded_stations[0][0] - 1, padded_stations[0][1] - 1,
-            obstacle_north, obstacle_south, obstacle_east, obstacle_west,
-            passenger_look, destination_look
+            padded_stations[1][0] - 1, padded_stations[1][1] - 1,
+            padded_stations[2][0] - 1, padded_stations[2][1] - 1,
+            padded_stations[3][0] - 1, padded_stations[3][1] - 1,
+            obstacle_west, obstacle_east, obstacle_south, obstacle_north,
+            passenger_look, destination_look,
         )
         return state
+
+def get_station_directions(obs):
+    """
+        tuple: 16 binary values where:
+        - Values 0-3: Station 0's [North, East, West, South] position relative to taxi
+        - Values 4-7: Station 1's [North, East, West, South] position relative to taxi
+        - Values 8-11: Station 2's [North, East, West, South] position relative to taxi
+        - Values 12-15: Station 3's [North, East, West, South] position relative to taxi
+    """
+    taxi_row, taxi_col = obs[0], obs[1]
+    
+    stations = [
+        (obs[2], obs[3]),
+        (obs[4], obs[5]),
+        (obs[6], obs[7]),
+        (obs[8], obs[9])
+    ]
+    
+    station_directions = []
+    for station in stations:
+        station_row, station_col = station
+        station_directions.append(int(station_col > taxi_col))
+        station_directions.append(int(station_col < taxi_col))
+        station_directions.append(int(station_row > taxi_row))
+        station_directions.append(int(station_row < taxi_row))
+    
+    return tuple(station_directions)
+
+def passenger_on_taxi(prev_state, action, now_state, prev):
+    stations_1 = [[0, 0] for _ in range(4)]
+    (
+        taxi_row_1, taxi_col_1,
+        stations_1[3][0], stations_1[3][1],
+        stations_1[2][0], stations_1[2][1],
+        stations_1[1][0], stations_1[1][1],
+        stations_1[0][0], stations_1[0][1],
+        _, _, _, _,
+        passenger_look_1, destination_look_1
+    ) = prev_state
+
+    stations_2 = [[0, 0] for _ in range(4)]
+    (
+        taxi_row_2, taxi_col_2,
+        stations_2[3][0], stations_2[3][1],
+        stations_2[2][0], stations_2[2][1],
+        stations_2[1][0], stations_2[1][1],
+        stations_2[0][0], stations_2[0][1],
+        _, _, _, _,
+        passenger_look_2, destination_look_2
+    ) = now_state
+
+    if action == 5 and [taxi_row_2, taxi_col_2] in stations_2 and destination_look_2 == 1:
+        return 0
+    if action != 4:
+        return prev
+    if [taxi_row_2, taxi_col_2] in stations_2 and passenger_look_2 == 1:
+        return 1
+    return 0
 
 def interactive_test(maze_size=6):
     """
@@ -437,12 +496,23 @@ def display_observation(obs):
         [obs[6], obs[7]],  # Station 2
         [obs[8], obs[9]]   # Station 3
     ]
-    obstacle_north = obs[10]
-    obstacle_south = obs[11]
-    obstacle_east = obs[12]
-    obstacle_west = obs[13]
+    obstacle_west = obs[10]
+    obstacle_east = obs[11]
+    obstacle_south = obs[12]
+    obstacle_north = obs[13]
     passenger_visible = obs[14]
     destination_visible = obs[15]
+    
+    # Calculate station directions directly rather than trying to read them from obs
+    station_directions = []
+    for station in stations:
+        station_row, station_col = station
+        directions = []
+        if station_row < taxi_row: directions.append("North")
+        if station_col > taxi_col: directions.append("East")
+        if station_col < taxi_col: directions.append("West")
+        if station_row > taxi_row: directions.append("South")
+        station_directions.append(directions)
     
     # Print in a formatted way
     print("\nObservation Details:")
@@ -452,83 +522,94 @@ def display_observation(obs):
     if obstacle_south: directions.append("South")
     if obstacle_east: directions.append("East")
     if obstacle_west: directions.append("West")
-    print(", ".join(directions) if directions else "None")
+    print("  Obstacles in direction(s): " + (", ".join(directions) if directions else "None"))
     print(f"  Passenger visible: {'Yes' if passenger_visible else 'No'}")
     print(f"  Destination visible: {'Yes' if destination_visible else 'No'}")
+    
+    # Print station direction information
+    print("\nStation Directions from Taxi:")
+    for i in range(4):
+        print(f"  Station {i}: {', '.join(station_directions[i]) or 'None'}")
+
+def update_target(obs, old_target):
+    if (obs[0], obs[1]) == (obs[2], obs[3]) and old_target == 0:
+        return 1
+    if (obs[0], obs[1]) == (obs[4], obs[5]) and old_target == 1:
+        return 2
+    if (obs[0], obs[1]) == (obs[6], obs[7]) and old_target == 2:
+        return 3
+    if (obs[0], obs[1]) == (obs[8], obs[9]) and old_target == 3:
+        return 0
+    return old_target
+
+def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
+    """
+    Applies potential-based reward shaping based on distance to current target.
+    """
+    def get_target_coords(obs, target_idx):
+        if target_idx == 0: return obs[2], obs[3]
+        elif target_idx == 1: return obs[4], obs[5]
+        elif target_idx == 2: return obs[6], obs[7]
+        elif target_idx == 3: return obs[8], obs[9]
+    
+    def manhattan_distance(row1, col1, row2, col2):
+        return abs(row1 - row2) + abs(col1 - col2)
+
+    if prev_target != now_target:
+        return reward
+    else:
+        target_row, target_col = get_target_coords(now_obs, now_target)
+        prev_potential = -manhattan_distance(prev_obs[0], prev_obs[1], target_row, target_col)
+        next_potential = -manhattan_distance(now_obs[0], now_obs[1], target_row, target_col)
+        shaping_reward = next_potential - prev_potential
+        return reward + shaping_reward
 
 if __name__ == "__main__":
-    # Choose between automated test and interactive test
-    print("1: Run automated test")
-    print("2: Run interactive test")
-    choice = input("Enter choice (1/2): ").strip()
-    
-    if choice == "2":
-        # Ask for maze size
-        try:
-            size = int(input("Enter maze size (5-10 recommended): ").strip())
-            interactive_test(size)
-        except ValueError:
-            print("Invalid input. Using default size 6.")
-            interactive_test(6)
-    elif choice == "1":
-        # Original automated test
-        test_n = 6
-        maze_obj = Maze(test_n)
-        print(f"\nMaze for n={test_n}:")
-        print(maze_obj)
+    env = Maze(10)
+    obs = env.get_state()
+    station_directions = get_station_directions(obs)
+    have_passenger = 0
+    now_target = 0
+    shaped_reward = 0
+
+    done = False
+    while not done:
+        # Display the current maze state
+        clear_screen()
+        display_state(env)
         
-        print(f"Stations: {maze_obj.stations}")
-        print(f"Taxi location: {maze_obj.taxi_location}")
-        print(f"Passenger station index: {maze_obj.pass_idx}")
-        print(f"Passenger location: {maze_obj.passenger_loc}")
-        print(f"Destination station index: {maze_obj.dest_idx}")
-        print(f"Destination: {maze_obj.destination}")
-        print(f"Passenger picked up: {maze_obj.passenger_picked_up}")
-        print(f"Fuel: {maze_obj.fuel}")
+        state = list(station_directions) + list(obs[10:]) + [have_passenger] + [now_target]
+        print("Station Directions:")
+        print(f'    {state[0:4]}')
+        print(f'    {state[4:8]}')
+        print(f'    {state[8:12]}')
+        print(f'    {state[12:16]}')
+        print("Obstacles:")
+        print(f'    {state[16:20]}')
+        print("Passenger / Destination Near:")
+        print(f'    {state[20]}, {state[21]}')
+        print(f'Have Passenger: {state[22]}')
+        print(f'Now Target: {state[23]}')
+        print(f'Shaped Reward: {shaped_reward}')
         
-        # Get and display the state
-        state = maze_obj.get_state()
-        print(f"\nCurrent state: {state}")
-        
-        # Test some actions
-        print("\nTesting actions:")
-        
-        # Try to move south
-        obs, reward, done, _, _ = maze_obj.step(0)
-        print(f"Move south: Reward = {reward}, Done = {done}")
-        print(f"New taxi location: {maze_obj.taxi_location}")
-        print(f"Fuel remaining: {maze_obj.fuel}")
-        display_observation(obs)
-        
-        # Try to pick up passenger (will likely fail since taxi is not at passenger location)
-        obs, reward, done, _, _ = maze_obj.step(4)
-        print(f"Pick up passenger: Reward = {reward}, Done = {done}")
-        print(f"Passenger picked up: {maze_obj.passenger_picked_up}")
-        print(f"Fuel remaining: {maze_obj.fuel}")
-        display_observation(obs)
-        
-        # Test fuel depletion
-        print("\nTesting fuel depletion:")
-        maze_obj.fuel = 1  # Set fuel to 1 to test depletion on next step
-        obs, reward, done, _, _ = maze_obj.step(1)
-        print(f"Action after fuel depletion: Reward = {reward}, Done = {done}")
-        print(f"Fuel remaining: {maze_obj.fuel}")
-        display_observation(obs)
-    else:
-        test_n = 5
-        maze_obj = Maze(test_n)
-        total_reward = 0
-        done = False
-        
-        print("\nPerforming random actions:")
-        while not done:
-            action = random.randint(0, 5)  # Random action between 0-5
-            obs, reward, done, _, _ = maze_obj.step(action)
-            total_reward += reward
-            print(f"Action {action}: Reward = {reward}, Total Reward = {total_reward}")
-            print(f"Taxi location: {maze_obj.taxi_location}")
-            print(f"Fuel remaining: {maze_obj.fuel}")
-            display_observation(obs)
-            print()
-        
-        print(f"\nEpisode ended with total reward: {total_reward}")
+        user_input = input("\nEnter action: ").strip().lower()
+        if user_input == 'q': break
+        action_map = { 'w': 1, 'a': 3, 's': 0, 'd': 2, 'p': 4, 'o': 5 }
+        if user_input in action_map:
+            action = action_map[user_input]
+        else:
+            print("Invalid input! Use WASD for movement, P to pick up, O to drop off")
+            continue
+
+        next_obs, reward, done, _, _ = env.step(action)
+
+        next_station_directions = get_station_directions(next_obs)
+        next_have_passenger = passenger_on_taxi(obs, action, next_obs, have_passenger)
+        next_now_target = update_target(next_obs, now_target)
+
+        shaped_reward = reward_shaping(obs, now_target, action, next_obs, next_now_target, reward)
+
+        obs = next_obs
+        station_directions = next_station_directions
+        have_passenger = next_have_passenger
+        now_target = next_now_target
