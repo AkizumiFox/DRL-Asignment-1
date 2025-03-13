@@ -121,15 +121,14 @@ def get_action(obs):
     station_directions = get_station_directions(obs)
     state = tuple(
         list(station_directions) + 
-        list(obs[10:14])[::-1] +
-        list(obs[14:]) + 
+        list(obs[10:]) + 
         [get_action.have_passenger] + 
         [get_action.now_target]
     )
     
     # Use Q-table to select the best action - no exploration during inference
-    if state not in get_action.q_table:
-        action = random.randint(0, 5)
+    if state not in get_action.q_table or np.random.uniform(0, 1) < 0.1:
+        action = random.randint(0, 3)
     else:
         action = np.argmax(get_action.q_table[state])
     
