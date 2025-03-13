@@ -100,17 +100,34 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
         return reward + shaping_reward
 
 def get_action(obs):
+    # Initialize attributes on first call
     if not hasattr(get_action, "q_table"):
         get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.now_target = 0
+        get_action.prev_obs = obs
     else:
-        get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, action, obs, get_action.have_passenger)
+        # Update passenger status and target based on previous action
+        prev_action = getattr(get_action, "prev_action", 0)
+        get_action.have_passenger = passenger_on_taxi(
+            get_action.prev_obs, prev_action, obs, get_action.have_passenger
+        )
         get_action.now_target = update_target(obs, get_action.now_target)
-
+    
+    # Process observation to create state representation
     station_directions = get_station_directions(obs)
-    state = tuple(list(station_directions) + list(obs[10:]) + [get_action.have_passenger] + [get_action.now_target])
+    state = tuple(
+        list(station_directions) + 
+        list(obs[10:]) + 
+        [get_action.have_passenger] + 
+        [get_action.now_target]
+    )
+    
+    # Use Q-table to select the best action - no exploration during inference
     action = np.argmax(get_action.q_table[state])
-
+    
+    # Store current observation and selected action for next call
     get_action.prev_obs = obs
+    get_action.prev_action = action
+    
     return action
