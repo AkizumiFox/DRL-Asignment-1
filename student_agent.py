@@ -100,11 +100,13 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
         return reward + shaping_reward
 
 def get_action(obs):
+    obs = list(obs)
     obs[0], obs[1] = obs[1], obs[0]
     obs[2], obs[3] = obs[3], obs[2]
     obs[4], obs[5] = obs[5], obs[4]
     obs[6], obs[7] = obs[7], obs[6]
     obs[8], obs[9] = obs[9], obs[8]
+    obs = tuple(obs)
     # Initialize attributes on first call
     if not hasattr(get_action, "q_table"):
         get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
