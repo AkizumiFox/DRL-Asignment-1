@@ -594,9 +594,10 @@ if __name__ == "__main__":
         
         user_input = input("\nEnter action: ").strip().lower()
         if user_input == 'q': break
-        action_map = { 'w': 1, 'a': 3, 's': 0, 'd': 2, 'p': 4, 'o': 5 }
+        # action_map = { 'w': 1, 'a': 3, 's': 0, 'd': 2, 'p': 4, 'o': 5 }
+        action_map = {'0', '1', '2', '3', '4', '5'}
         if user_input in action_map:
-            action = action_map[user_input]
+            action = int(user_input)
         else:
             print("Invalid input! Use WASD for movement, P to pick up, O to drop off")
             continue

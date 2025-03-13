@@ -177,12 +177,7 @@ def run_interactive_game(fuel_limit=5000):
     # A simple mapping from user keys to env actions
     #   0 = Move South, 1 = Move North, 2 = Move East, 3 = Move West, 4 = Pick Up, 5 = Drop Off
     key_to_action = {
-        's': 0,  # Move South
-        'w': 1,  # Move North
-        'd': 2,  # Move East
-        'a': 3,  # Move West
-        'p': 4,  # Pick Up
-        'o': 5   # Drop Off
+        '0', '1', '2', '3', '4', '5'
     }
 
     while not done:
@@ -193,9 +188,7 @@ def run_interactive_game(fuel_limit=5000):
         print(f"Raw State: {obs}")
 
         # Prompt for user input
-        action_str = input(
-            "Enter an action [W=North, A=West, S=South, D=East, P=Pick Up, O=Drop Off] or Q to quit: "
-        ).lower()
+        action_str = input().lower()
 
         if action_str == 'q':
             print("Exiting the game.")
@@ -206,7 +199,8 @@ def run_interactive_game(fuel_limit=5000):
             print("Invalid action. Use W, A, S, D, P, O (or Q to quit).")
             continue
 
-        action = key_to_action[action_str]
+        # action = key_to_action[action_str]
+        action = int(action_str)
 
         # Step the environment
         obs, reward, done, truncated, info = env.step(action)
