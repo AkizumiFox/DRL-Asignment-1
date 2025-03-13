@@ -6,7 +6,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from collections import deque
+from collections import deque, defaultdict
 
 def q_table_fac():
     return np.zeros(6)
@@ -105,7 +105,18 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
 def get_action(obs):
     # Initialize attributes on first call
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
+        try:
+            # Try to load the Q-table directly
+            get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
+        except AttributeError:
+            # If that fails, load it and convert to a dictionary
+            raw_data = pickle.load(open("q_table.pkl", "rb"))
+            # Convert defaultdict to regular dict if necessary
+            if isinstance(raw_data, defaultdict):
+                get_action.q_table = dict(raw_data)
+            else:
+                get_action.q_table = raw_data
+                
         get_action.have_passenger = 0
         get_action.now_target = 0
         get_action.prev_obs = obs
@@ -126,8 +137,12 @@ def get_action(obs):
         [get_action.now_target]
     )
     
-    # Use Q-table to select the best action - no exploration during inference
-    action = np.argmax(get_action.q_table[state])
+    # Use Q-table to select the best action - handle missing states
+    if state in get_action.q_table:
+        action = np.argmax(get_action.q_table[state])
+    else:
+        # If state not in Q-table, use a default action (0)
+        action = 0
     
     # Store current observation and selected action for next call
     get_action.prev_obs = obs
