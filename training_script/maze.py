@@ -189,7 +189,7 @@ class Maze:
             return self.get_state(), reward - 10, True, False, False  # Fuel exhaustion penalty
 
         if 0 <= action <= 3:
-            directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+            directions = [(1, 0),  (-1, 0), (0, 1), (0, -1)]
             dr, dc = directions[action]
             new_r, new_c = self.taxi_location[0] + dr, self.taxi_location[1] + dc
 
@@ -314,10 +314,10 @@ def passenger_on_taxi(prev_state, action, now_state, prev):
     stations_1 = [[0, 0] for _ in range(4)]
     (
         taxi_row_1, taxi_col_1,
-        stations_1[3][0], stations_1[3][1],
-        stations_1[2][0], stations_1[2][1],
-        stations_1[1][0], stations_1[1][1],
         stations_1[0][0], stations_1[0][1],
+        stations_1[1][0], stations_1[1][1],
+        stations_1[2][0], stations_1[2][1],
+        stations_1[3][0], stations_1[3][1],
         _, _, _, _,
         passenger_look_1, destination_look_1
     ) = prev_state
@@ -325,10 +325,10 @@ def passenger_on_taxi(prev_state, action, now_state, prev):
     stations_2 = [[0, 0] for _ in range(4)]
     (
         taxi_row_2, taxi_col_2,
-        stations_2[3][0], stations_2[3][1],
-        stations_2[2][0], stations_2[2][1],
-        stations_2[1][0], stations_2[1][1],
         stations_2[0][0], stations_2[0][1],
+        stations_2[1][0], stations_2[1][1],
+        stations_2[2][0], stations_2[2][1],
+        stations_2[3][0], stations_2[3][1],
         _, _, _, _,
         passenger_look_2, destination_look_2
     ) = now_state
@@ -442,34 +442,25 @@ def get_user_action():
 def display_state(maze_obj):
     """Display the current state of the maze with taxi, passenger, and destination."""
     # Create a visual representation of the maze
-    original_maze = [row[:] for row in maze_obj.maze]
-    
-    # Transpose the maze (swap rows and columns)
-    visual_maze = [[original_maze[j][i] for j in range(maze_obj.size)] for i in range(maze_obj.size)]
-    
-    # Mark stations with numbers (note: coordinates are now swapped)
-    for i, station in enumerate(maze_obj.stations):
-        r, c = station
-        visual_maze[c][r] = str(i)  # Notice the swap of r,c to c,r
-    
-    # Mark taxi position with 'T' (coordinates swapped)
-    taxi_r, taxi_c = maze_obj.taxi_location
-    visual_maze[taxi_c][taxi_r] = 'T'  # Swap r,c
-    
-    # If passenger is not picked up, mark their position with 'P'
-    if not maze_obj.passenger_picked_up and maze_obj.passenger_loc:
-        p_r, p_c = maze_obj.passenger_loc
-        if [p_r, p_c] != maze_obj.taxi_location:  # Don't overwrite taxi
-            visual_maze[p_c][p_r] = 'P'  # Swap r,c
-    
-    # Mark destination with 'D'
-    if maze_obj.destination:
-        d_r, d_c = maze_obj.destination
-        if [d_r, d_c] != maze_obj.taxi_location:  # Don't overwrite taxi
-            visual_maze[d_c][d_r] = 'D'  # Swap r,c
+    visual_maze = []
+    for row in range(maze_obj.size):
+        visual_row = []
+        for col in range(maze_obj.size):
+            if [row, col] == maze_obj.taxi_location:
+                char = 'T'
+            elif not maze_obj.passenger_picked_up and [row, col] == maze_obj.passenger_loc:
+                char = 'P'
+            elif [row, col] == maze_obj.destination:
+                char = 'D'
+            elif [row, col] in maze_obj.stations:
+                char = 'S'
+            else:
+                char = maze_obj.maze[row][col]
+            visual_row.append(char)
+        visual_maze.append(visual_row)
     
     # Print the maze
-    print("\nCurrent Maze (Transposed):")
+    print("\nCurrent Maze:")
     print("-" * (maze_obj.size + 2))
     for row in visual_maze:
         print("|" + "".join(row) + "|")
@@ -577,20 +568,21 @@ if __name__ == "__main__":
         # Display the current maze state
         clear_screen()
         display_state(env)
+        print(obs)
         
         state = list(station_directions) + list(obs[10:]) + [have_passenger] + [now_target]
-        print("Station Directions:")
-        print(f'    {state[0:4]}')
-        print(f'    {state[4:8]}')
-        print(f'    {state[8:12]}')
-        print(f'    {state[12:16]}')
-        print("Obstacles:")
-        print(f'    {state[16:20]}')
-        print("Passenger / Destination Near:")
-        print(f'    {state[20]}, {state[21]}')
-        print(f'Have Passenger: {state[22]}')
-        print(f'Now Target: {state[23]}')
-        print(f'Shaped Reward: {shaped_reward}')
+        # print("Station Directions:")
+        # print(f'    {state[0:4]}')
+        # print(f'    {state[4:8]}')
+        # print(f'    {state[8:12]}')
+        # print(f'    {state[12:16]}')
+        # print("Obstacles:")
+        # print(f'    {state[16:20]}')
+        # print("Passenger / Destination Near:")
+        # print(f'    {state[20]}, {state[21]}')
+        # print(f'Have Passenger: {state[22]}')
+        # print(f'Now Target: {state[23]}')
+        # print(f'Shaped Reward: {shaped_reward}')
         
         user_input = input("\nEnter action: ").strip().lower()
         if user_input == 'q': break
