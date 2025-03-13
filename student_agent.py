@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
-def q_table_factory():
+def q_table_fac():
     return np.zeros(6)
 
 def get_station_directions(obs):
