@@ -100,49 +100,25 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
         return reward + shaping_reward
 
 def get_action(obs):
-    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
-    # Initialize attributes on first call
     if not hasattr(get_action, "q_table"):
-        try:
-            # Load Q-table from pickle file
-            get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
-        except Exception as e:
-            print(f"Error loading q_table: {e}")
-            # Create a new empty Q-table if loading fails
-            get_action.q_table = {}
-            
+        get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.now_target = 0
-        get_action.prev_obs = obs
     else:
-        # Update passenger status and target based on previous action
-        prev_action = getattr(get_action, "prev_action", 0)
-        get_action.have_passenger = passenger_on_taxi(
-            get_action.prev_obs, prev_action, obs, get_action.have_passenger
-        )
+        get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, get_action.prev_action, obs, get_action.have_passenger)
         get_action.now_target = update_target(obs, get_action.now_target)
-    
-    # Process observation to create state representation
-    station_directions = get_station_directions(obs)
+
     state = tuple(
-        list(station_directions) + 
+        list(get_station_directions(obs)) + 
         list(obs[10:]) + 
         [get_action.have_passenger] + 
         [get_action.now_target]
     )
-    
-    # Initialize state in q_table if not already present
-    if state not in get_action.q_table:
-        get_action.q_table[state] = q_table_fac()
-    
-    # Use epsilon-greedy action selection
-    # Small exploration chance (0.01) even during evaluation
-    if np.random.uniform(0, 1) < 0.01:
-        action = np.random.randint(6)  # Explore
+    if state not in get_action.q_table or np.random.uniform(0, 1) < 0.01:
+        action = np.random.randint(6)
     else:
-        action = np.argmax(get_action.q_table[state])  # Exploit
-    
-    # Store current observation and selected action for next call
+        action = np.argmax(get_action.q_table[state])
+
     get_action.prev_obs = obs
     get_action.prev_action = action
     

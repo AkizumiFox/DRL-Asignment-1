@@ -278,7 +278,7 @@ class Maze:
             padded_stations[1][0] - 1, padded_stations[1][1] - 1,
             padded_stations[2][0] - 1, padded_stations[2][1] - 1,
             padded_stations[3][0] - 1, padded_stations[3][1] - 1,
-            obstacle_west, obstacle_east, obstacle_south, obstacle_north,
+            obstacle_north, obstacle_south, obstacle_east, obstacle_west, 
             passenger_look, destination_look,
         )
         return state
