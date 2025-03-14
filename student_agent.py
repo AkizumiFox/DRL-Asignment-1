@@ -119,7 +119,7 @@ def get_action(obs):
     else:
         action = np.argmax(get_action.q_table[state])
 
-    # action map
+    # action
     action_map = {
         0: 1,
         1: 0,
