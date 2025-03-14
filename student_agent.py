@@ -101,7 +101,7 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
 
 def get_action(obs):
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table1.pkl", "rb"))
+        get_action.q_table = pickle.load(open("q_table2.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.now_target = 0
     else:
