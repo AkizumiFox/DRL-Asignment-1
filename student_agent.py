@@ -235,10 +235,10 @@ def get_action(obs):
     # Get action from agent, passing current hidden state
     action, get_action.hidden_state = get_action.agent.act(state, get_action.hidden_state)
     action_map = {
-        0: 1, 
-        1: 0, 
-        2: 2, 
-        3: 3, 
+        0: 0, 
+        1: 1, 
+        2: 3, 
+        3: 2, 
         4: 4, 
         5: 5
     }
