@@ -120,10 +120,10 @@ def get_action(obs):
         action = np.argmax(get_action.q_table[state])
 
     action_map = {
-        0: 2,
-        1: 3,
-        2: 0,
-        3: 1,
+        0: 0,
+        1: 1,
+        2: 2,
+        3: 3,
         4: 4,
         5: 5
     }
