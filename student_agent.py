@@ -121,10 +121,10 @@ def get_action(obs):
 
     # action map
     action_map = {
-        0: 1,
-        1: 0,
-        2: 2,
-        3: 3,
+        0: 0,
+        1: 1,
+        2: 3,
+        3: 2,
         4: 4,
         5: 5
     }
