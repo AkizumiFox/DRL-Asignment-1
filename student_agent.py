@@ -100,6 +100,8 @@ def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
         return reward + shaping_reward
 
 def get_action(obs):
+    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
+
     if not hasattr(get_action, "q_table"):
         get_action.q_table = pickle.load(open("q_table3.pkl", "rb"))
         get_action.have_passenger = 0
@@ -121,10 +123,10 @@ def get_action(obs):
 
     # action
     action_map = {
-        0: 3,
-        1: 2,
-        2: 1,
-        3: 0,
+        0: 0,
+        1: 1,
+        2: 2,
+        3: 3,
         4: 4,
         5: 5
     }
