@@ -5,35 +5,10 @@ import gym
 import math
 from collections import deque
 
-def q_table_fac():
-    return np.zeros(6)
-
-def get_station_directions(obs):
-    """
-        tuple: 16 binary values where:
-        - Values 0-3: Station 0's [North, East, West, South] position relative to taxi
-        - Values 4-7: Station 1's [North, East, West, South] position relative to taxi
-        - Values 8-11: Station 2's [North, East, West, South] position relative to taxi
-        - Values 12-15: Station 3's [North, East, West, South] position relative to taxi
-    """
-    taxi_row, taxi_col = obs[0], obs[1]
-
-    stations = [
-        (obs[2], obs[3]),
-        (obs[4], obs[5]),
-        (obs[6], obs[7]),
-        (obs[8], obs[9])
-    ]
-
-    station_directions = []
-    for station in stations:
-        station_row, station_col = station
-        station_directions.append(int(station_col > taxi_col))
-        station_directions.append(int(station_col < taxi_col))
-        station_directions.append(int(station_row > taxi_row))
-        station_directions.append(int(station_row < taxi_row))
-
-    return tuple(station_directions)
+def get_sign(n):
+    if n > 0: return 1
+    if n < 0: return -1
+    return 0
 
 def passenger_on_taxi(prev_state, action, now_state, prev):
     stations_1 = [[0, 0] for _ in range(4)]
@@ -66,72 +41,45 @@ def passenger_on_taxi(prev_state, action, now_state, prev):
         return 1
     return 0
 
-def update_target(obs, old_target):
-    if (obs[0], obs[1]) == (obs[2], obs[3]) and old_target == 0:
-        return 1
-    if (obs[0], obs[1]) == (obs[4], obs[5]) and old_target == 1:
-        return 2
-    if (obs[0], obs[1]) == (obs[6], obs[7]) and old_target == 2:
-        return 3
-    if (obs[0], obs[1]) == (obs[8], obs[9]) and old_target == 3:
-        return 0
-    return old_target
+def get_distance(obs):
+    taxi_row, taxi_col = obs[0], obs[1]
+    stations = [(obs[2], obs[3]), (obs[4], obs[5]), (obs[6], obs[7]), (obs[8], obs[9])]
 
-def reward_shaping(prev_obs, prev_target, action, now_obs, now_target, reward):
+    lst = []
+    for (station_row, station_col) in stations:
+        lst.append((station_row - taxi_row, station_col - taxi_col))
+    return lst
+
+def get_sign_distance(obs):
+    dis = get_distance(obs)
+    lst = []
+    for (row, col) in dis:
+        lst.append((get_sign(row), get_sign(col)))
+    return lst
+
+def get_agent_state(obs, have_passenger):
     """
-    Applies potential-based reward shaping based on distance to current target.
+    Convert the observation and passenger flag into the agent's state representation.
+    - get_sign_distance(obs) returns a list of 4 tuples; we convert it to a tuple of tuples.
+    - obs[10:16] are the six remaining observation features.
+    - have_passenger is the passenger flag.
     """
-    def get_target_coords(obs, target_idx):
-        if target_idx == 0: return obs[2], obs[3]
-        elif target_idx == 1: return obs[4], obs[5]
-        elif target_idx == 2: return obs[6], obs[7]
-        elif target_idx == 3: return obs[8], obs[9]
-
-    def manhattan_distance(row1, col1, row2, col2):
-        return abs(row1 - row2) + abs(col1 - col2)
-
-    if prev_target != now_target:
-        return reward
-    else:
-        target_row, target_col = get_target_coords(now_obs, now_target)
-        prev_potential = -manhattan_distance(prev_obs[0], prev_obs[1], target_row, target_col)
-        next_potential = -manhattan_distance(now_obs[0], now_obs[1], target_row, target_col)
-        shaping_reward = next_potential - prev_potential
-        return reward + shaping_reward
+    sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
+    features = tuple(obs[10:16])
+    return (frozenset(sign_distance), features, have_passenger)
 
 def get_action(obs):
-    obs = (obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[6], obs[7], obs[8], obs[9], obs[13], obs[12], obs[11], obs[10], obs[14], obs[15])
-
     if not hasattr(get_action, "q_table"):
         get_action.q_table = pickle.load(open("q_table3.pkl", "rb"))
         get_action.have_passenger = 0
-        get_action.now_target = 0
     else:
         get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, get_action.prev_action, obs, get_action.have_passenger)
-        get_action.now_target = update_target(obs, get_action.now_target)
 
-    state = tuple(
-        list(get_station_directions(obs)) + 
-        list(obs[10:]) + 
-        [get_action.have_passenger] + 
-        [get_action.now_target]
-    )
-    if state not in get_action.q_table or np.random.uniform(0, 1) < 0.01:
-        action = np.random.randint(6)
-    else:
-        action = np.argmax(get_action.q_table[state])
+    state = get_agent_state(obs, get_action.have_passenger)
 
-    # action
-    action_map = {
-        0: 0,
-        1: 1,
-        2: 2,
-        3: 3,
-        4: 4,
-        5: 5
-    }
+    this_action = np.argmax(get_action.q_table[state])
 
     get_action.prev_obs = obs
-    get_action.prev_action = action
+    get_action.prev_action = this_action
     
-    return action_map[action]
+    return this_action
