@@ -77,7 +77,8 @@ def get_action(obs):
 
     state = get_agent_state(obs, get_action.have_passenger)
 
-    this_action = np.argmax(get_action.q_table[state])
+    if state not in get_action.q_table or np.random.uniform(0, 1) < 0.04: this_action = np.random.randint(0, 5)
+    else: this_action = np.argmax(get_action.q_table[state])
 
     get_action.prev_obs = obs
     get_action.prev_action = this_action
