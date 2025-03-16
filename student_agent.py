@@ -70,7 +70,7 @@ def get_agent_state(obs, have_passenger):
 
 def get_action(obs):
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table3.pkl", "rb"))
+        get_action.q_table = pickle.load(open("q_table.pkl", "rb"))
         get_action.have_passenger = 0
     else:
         get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, get_action.prev_action, obs, get_action.have_passenger)
