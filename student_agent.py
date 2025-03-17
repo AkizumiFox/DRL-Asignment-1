@@ -71,29 +71,41 @@ def get_agent_state(obs, have_passenger, vis):
     - obs[10:16] are the six remaining observation features.
     - have_passenger is the passenger flag.
     """
-    sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
+    # sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
     features = tuple(obs[10:16])
     vistied = [(obs[0] + dx, obs[1] + dy) in vis for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]]
     vistied = tuple(vistied)
     on_station = now_on_station(obs)
-    return (frozenset(sign_distance), features, vistied, have_passenger, on_station)
+    return (features, vistied, have_passenger, on_station)
+
+def get_random_action(obs, have_passenger, state):
+    lst = []
+    for obs_idx, i in enumerate([6, 7, 8, 9]):
+        if obs[obs_idx] == 0: lst.append(i)
+    
+    if state[3] and obs[14] == 1 and not have_passenger:
+        lst.append(4)
+    if state[3] and obs[15] == 1 and have_passenger:
+        lst.append(5)
+    
+    return random.choice(lst)
+
 
 def get_action(obs):
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table9.pkl", "rb"))
+        get_action.q_table = pickle.load(open("q_table7.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.vis = {(obs[0], obs[1])}
     else:
-        this_have_passenger = passenger_on_taxi(get_action.prev_obs, get_action.prev_action, obs, get_action.have_passenger)
-        if get_action.have_passenger == 0 and this_have_passenger == 1:
-            get_action.vis.clear()
-        get_action.have_passenger  = this_have_passenger
+        get_action.have_passenger = passenger_on_taxi(get_action.prev_obs, get_action.prev_action, obs, get_action.have_passenger)
         get_action.vis.add((obs[0], obs[1]))
 
     state = get_agent_state(obs, get_action.have_passenger, get_action.vis)
 
-    if state not in get_action.q_table: this_action = np.random.randint(0, 5)
-    else: this_action = np.argmax(get_action.q_table[state])
+    if state not in get_action.q_table or np.random.uniform(0, 1) < 0.01: 
+        this_action = get_random_action(obs, get_action.have_passenger, state)
+    else: 
+        this_action = np.argmax(get_action.q_table[state])
 
     get_action.prev_obs = obs
     get_action.prev_action = this_action
