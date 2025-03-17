@@ -81,7 +81,7 @@ def get_agent_state(obs, have_passenger, vis):
 
 def get_action(obs):
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table6.pkl", "rb"))
+        get_action.q_table = pickle.load(open("q_table7.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.vis = {(obs[0], obs[1])}
     else:
