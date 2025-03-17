@@ -71,12 +71,12 @@ def get_agent_state(obs, have_passenger, vis):
     - obs[10:16] are the six remaining observation features.
     - have_passenger is the passenger flag.
     """
-    sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
+    # sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
     features = tuple(obs[10:16])
     vistied = [(obs[0] + dx, obs[1] + dy) in vis for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]]
     vistied = tuple(vistied)
     on_station = now_on_station(obs)
-    return (frozenset(sign_distance), features, vistied, have_passenger, on_station)
+    return (features, vistied, have_passenger, on_station)
 
 
 def get_action(obs):
