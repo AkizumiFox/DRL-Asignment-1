@@ -71,36 +71,16 @@ def get_agent_state(obs, have_passenger, vis):
     - obs[10:16] are the six remaining observation features.
     - have_passenger is the passenger flag.
     """
-    # sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
-    taxi_row, taxi_col = obs[0], obs[1]
-    stations = [(obs[2], obs[3]), (obs[4], obs[5]), (obs[6], obs[7]), (obs[8], obs[9])]
-
+    sign_distance = list(tuple(pair) for pair in get_sign_distance(obs))
     features = tuple(obs[10:16])
-
-    vistied = [(obs[0] + dx, obs[1] + dy) in vis for dx, dy in [(1, 1), (1, 0), (1, -1), (0, 1), (0, -1), (-1, 1), (-1, 0), (-1, -1)]]
+    vistied = [(obs[0] + dx, obs[1] + dy) in vis for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]]
     vistied = tuple(vistied)
-
-    if have_passenger == 0:
-        passenger_code = 0
-    else:
-        unvisited_stations = [st for st in stations if st not in vis]
-        if len(unvisited_stations) == 0:
-            for st in stations: vis.remove(st)
-            unvisited_stations = [st for st in stations]
-
-        unvisited_stations.sort(key = lambda x: abs(x[0] - taxi_row) + abs(x[1] - taxi_col))
-        nearest_station = unvisited_stations[0]
-
-        x_sign, y_sign = get_sign(nearest_station[0] - taxi_row), get_sign(nearest_station[1] - taxi_col)
-        passenger_code = (x_sign + 5) * 10 + (y_sign + 5)
-
     on_station = now_on_station(obs)
-    return (features, vistied, passenger_code, on_station)
-
+    return (frozenset(sign_distance), features, vistied, have_passenger, on_station)
 
 def get_action(obs):
     if not hasattr(get_action, "q_table"):
-        get_action.q_table = pickle.load(open("q_table8.pkl", "rb"))
+        get_action.q_table = pickle.load(open("q_table9.pkl", "rb"))
         get_action.have_passenger = 0
         get_action.vis = {(obs[0], obs[1])}
     else:
