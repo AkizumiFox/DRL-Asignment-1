@@ -80,7 +80,7 @@ def get_agent_state(obs, have_passenger, vis):
 
 def get_random_action(obs, have_passenger, state):
     lst = []
-    for obs_idx, i in enumerate([6, 7, 8, 9]):
+    for i, obs_idx in enumerate([6, 7, 8, 9]):
         if obs[obs_idx] == 0: lst.append(i)
     
     if state[3] and obs[14] == 1 and not have_passenger:
